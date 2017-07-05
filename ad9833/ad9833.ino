@@ -4,79 +4,98 @@ works
 
 #include "SPI.h" // necessary library
 
+
+#define INPUT_SIZE 50
+#define ACK 0x00
+#define NACK 0x01
+
+#define FREQMIN 5000
+#define FREQMAX 50000
+
+#define NUMCOILS 8
+
+// List of commands goes here.
+const char cmdFreq[] = "FREQ";
+const char cmdRead[] = "READ";
+
 // Set master clock frequency to 6MHz
-float f_MCK=6000000;
+float f_MCK = 6000000.0;
 
 // Default frequencies for each coil.
-float coilfreq1=10500;
-float coilfreq2=11500;
-float coilfreq3=12500;
-float coilfreq4=13500;
-float coilfreq5=14500;
-float coilfreq6=15500;
-float coilfreq7=16500;
-float coilfreq8=17500;
+// The number of frequencies should match the number of coils
+int coilFreqs[NUMCOILS] ={
+	20500, // Coil 1
+	21500, // Coil 2
+	22500, // Coil 3
+	23500, // Coil 4
+	24500, // Coil 5
+	25500, // Coil 6
+	26500, // Coil 7
+	27500  // Coil 8
+};
 
-const int coilen1 = 3;
-const int coilen2 = 4;
-const int coilen3 = 5;
-const int coilen4 = 6;
-const int coilen5 = 7;
-const int coilen6 = 8;
-const int coilen7 = 9;
-const int coilen8 = 10;
+// Pin numbers for each coil on Teensy 3.2 
+int coilEnable[NUMCOILS] ={
+  6, // Coil 1
+  5, // Coil 2
+  4, // Coil 3
+  3, // Coil 4
+  10,// Coil 5
+  9, // Coil 6
+  8, // Coil 7
+  7  // Coil 8
+  
+};
 
+// Input serial buffer and size holder
+char input[INPUT_SIZE + 1];
+byte cmdsize = 0;
+
+
+// Function declarations
+int processSerial(char* input);
+int processFreqs(char* cmd);
+int isCoilValid(int coil);
+bool isFreqValid(int freq);
 
 void setup()
 {
-
-    pinMode(coilen1, INPUT);
-    pinMode(coilen2, INPUT);
-    pinMode(coilen3, INPUT);
-    pinMode(coilen4, INPUT);
-    pinMode(coilen5, INPUT);
-    pinMode(coilen6, INPUT);
-    pinMode(coilen7, INPUT);
-    pinMode(coilen8, INPUT);
-
-    digitalWrite(coilen1, HIGH);
-    digitalWrite(coilen2, HIGH);
-    digitalWrite(coilen3, HIGH);
-    digitalWrite(coilen4, HIGH);
-    digitalWrite(coilen5, HIGH);
-    digitalWrite(coilen6, HIGH);
-    digitalWrite(coilen7, HIGH);
-    digitalWrite(coilen8, HIGH);
+	// Set states for the SPI enable pins
+    for (int i = 0; i < NUMCOILS; i++){
+    	pinMode(coilEnable[i], INPUT);
+    }
 
     // wake up the SPI bus and set SPI mode and SCLK divisor.
     SPI.begin();
-    SPI.setClockDivider(SPI_CLOCK_DIV128);
-    SPI.setBitOrder(MSBFIRST);
-    SPI.setDataMode(SPI_MODE2);
+
+    // Allow some time for power-on
+    delay(200);
+
+    // Program each AD9833 waveform generator
+    sendAllFreqs();
+
   
 }
 
 
 void loop()
 {
-
-    // Allow some time for power-on
-    delay(3000);
-
-    // Program each AD9833 waveform generator
-    sendAllFreqs();
-
+	int ack = 0;
+	if (Serial.available()){
+		cmdsize = Serial.readBytes(input, INPUT_SIZE);
+		input[cmdsize] = '\0';
+		ack = processSerial(input);
+	}
 
     //Spin MCU indefinitely
-    while(1){
-    delay(200);
-    //sendFreq(coilfreq1,coilen1);
-    }
+
+  delay(50);
+
 }
 
 
 // Calculate the word required for programming the AD9833 to frequency 'freq'
-long calc_freq_reg(float freq)
+long calcAD9833FreqReg(float freq)
     {
     // Declare variables for calculations
     long freqWord;
@@ -98,25 +117,27 @@ long calc_freq_reg(float freq)
 
 
 
-void sendFreq(float freq, int pin_no)
+void sendFreq(float freq, int pinNo)
 {
 
-    delay(100);
+    delay(10);
     long freq_reg_word;
     word LSB_part;
     word MSB_part;
 
-    freq_reg_word=calc_freq_reg(freq);
-    LSB_part=freq_reg_word&0b0000000000000011111111111111;
-    MSB_part=freq_reg_word >> 14;
-    LSB_part=LSB_part|0b0100000000000000;
-    MSB_part=MSB_part|0b0100000000000000;
+    freq_reg_word = calcAD9833FreqReg(freq);
+    LSB_part = freq_reg_word & 0b0000000000000011111111111111;
+    MSB_part = freq_reg_word >> 14;
+    LSB_part = LSB_part|0b0100000000000000;
+    MSB_part = MSB_part|0b0100000000000000;
 
+
+    SPI.beginTransaction(SPISettings(SPI_CLOCK_DIV128, MSBFIRST, SPI_MODE2));
+    pinMode(pinNo, OUTPUT);
+    digitalWrite(pinNo,LOW);
     
-    digitalWrite(pin_no,LOW);
-    pinMode(pin_no, OUTPUT);
     
-    delayMicroseconds(100);
+    delayMicroseconds(25);
     SPI.transfer(highByte(0x2100));
     SPI.transfer(lowByte(0x2100));
     SPI.transfer(highByte(LSB_part));
@@ -128,28 +149,82 @@ void sendFreq(float freq, int pin_no)
     SPI.transfer(highByte(0x2000));
     SPI.transfer(lowByte(0x2000));
     delayMicroseconds(25);
-    pinMode(pin_no, INPUT);
-
-    delay(100);
+    pinMode(pinNo, INPUT);
+    SPI.endTransaction();
+    delay(10);
 }
 
 
 
 void sendAllFreqs()
 {
-    int i = 0;
-
-    for (i=0;i<10;i++)
+	// Send each frequency 10 times to ensure SPI works
+    for (int i = 0; i < NUMCOILS; i++)
     {
-        sendFreq(coilfreq1, coilen1);
-        sendFreq(coilfreq2, coilen2);
-        sendFreq(coilfreq3, coilen3);
-        sendFreq(coilfreq4, coilen4);
-        sendFreq(coilfreq5, coilen5);
-        sendFreq(coilfreq6, coilen6);
-        sendFreq(coilfreq7, coilen7);
-        sendFreq(coilfreq8, coilen8);
+    	for (int j = 0; j < 3; j++){
+    		sendFreq(coilFreqs[i], coilEnable[i]);
+    	}
     }
 
 }
 
+
+
+
+
+
+int processSerial(char *inputbuf)
+{
+	char* cmd = strtok(inputbuf, " :");
+	if (!strcmp(cmd, cmdFreq)){
+		cmd = strtok(NULL, " :");
+		return processFreqs(cmd);
+	}
+	else{
+		return NACK;
+	}
+}
+
+int processFreqs(char *cmd)
+{
+	char *separator = 0;
+	int coilNo = 0;
+	int coilFreq = 0;
+
+	while (cmd != NULL){
+		separator = strchr(cmd, '@');
+		if (separator != NULL){
+			*separator = '\0';
+			coilNo = atoi(cmd);
+			separator++;
+			coilFreq = atoi(separator);
+			// If both the coil and frequiency are valid then program the new frequency
+			if (isCoilValid(coilNo) && isFreqValid(coilFreq)){
+				coilFreqs[coilNo-1] = coilFreq;
+				sendFreq(coilFreqs[coilNo-1], coilEnable[coilNo-1]);
+			}
+		}
+		cmd = strtok(NULL, " :");
+	}
+}
+
+
+int isCoilValid(int coilNo)
+{
+	for(int i = 0; i < NUMCOILS; i++){
+		if(i == coilNo){
+			return i + 1; // Add +1 to prevent false return
+		}
+	}
+	return false;
+}
+
+bool isFreqValid(int freq)
+{
+	if(freq >= FREQMIN && freq <= FREQMAX){
+		return true;
+	}
+	else{
+		return false;
+	}
+}
