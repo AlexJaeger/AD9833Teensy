@@ -43,8 +43,7 @@ int coilEnable[NUMCOILS] ={
   10,// Coil 5
   9, // Coil 6
   8, // Coil 7
-  7  // Coil 8
-  
+  7  // Coil 8 
 };
 
 // Input serial buffer and size holder
@@ -60,18 +59,22 @@ bool isFreqValid(int freq);
 
 void setup()
 {
-	// Set states for the SPI enable pins
+	  // Set states for the SPI enable pins
     for (int i = 0; i < NUMCOILS; i++){
     	pinMode(coilEnable[i], INPUT);
     }
 
-    // wake up the SPI bus and set SPI mode and SCLK divisor.
+    // Start Serial and reduce timeout to 100ms
+    Serial.begin(115200);
+    Serial.setTimeout(100);
+
+    // wake up the SPI bus and set SPI mode and SCLK divisor
     SPI.begin();
 
     // Allow some time for power-on
     delay(200);
 
-    // Program each AD9833 waveform generator
+    // Program each AD9833 waveform generator with default frequencies
     sendAllFreqs();
 
   
@@ -184,6 +187,8 @@ int processSerial(char *inputbuf)
 		return NACK;
 	}
 }
+
+
 
 int processFreqs(char *cmd)
 {
