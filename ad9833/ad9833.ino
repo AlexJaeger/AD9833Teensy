@@ -17,20 +17,22 @@ works
 // List of commands goes here.
 const char cmdFreq[] = "FREQ";
 const char cmdRead[] = "READ";
+const char cmdRst[]  = "RESET";
 
 // Set master clock frequency to 6MHz
 float f_MCK = 6000000.0;
 
 // Default frequencies for each coil.
 // The number of frequencies should match the number of coils
+// FREQ:1@20300:2@21700:3@22400:4@23600:5@24500:6@25100:7@26800:8@27500
 int coilFreqs[NUMCOILS] ={
-	20500, // Coil 1
-	21500, // Coil 2
-	22500, // Coil 3
-	23500, // Coil 4
+	20300, // Coil 1
+	21700, // Coil 2
+	22400, // Coil 3
+	23600, // Coil 4
 	24500, // Coil 5
-	25500, // Coil 6
-	26500, // Coil 7
+	25100, // Coil 6
+	26800, // Coil 7
 	27500  // Coil 8
 };
 
@@ -117,7 +119,30 @@ long calcAD9833FreqReg(float freq)
 }
 
 
+void resetAll()
+{
+  for(int i=0;i<NUMCOILS;i++)
+  {
+    reset(coilEnable[i]);
+  }
+}
 
+
+void reset(int pinNo)
+{
+    SPI.beginTransaction(SPISettings(SPI_CLOCK_DIV128, MSBFIRST, SPI_MODE2));
+    pinMode(pinNo, OUTPUT);
+    digitalWrite(pinNo,LOW);
+
+    delayMicroseconds(25);
+    SPI.transfer(highByte(0x2100));
+    SPI.transfer(lowByte(0x2100));
+
+    delayMicroseconds(25);
+    pinMode(pinNo, INPUT);
+    SPI.endTransaction();
+    delay(10);
+}
 
 
 void sendFreq(float freq, int pinNo)
@@ -161,7 +186,7 @@ void sendFreq(float freq, int pinNo)
 
 void sendAllFreqs()
 {
-	// Send each frequency 10 times to ensure SPI works
+	// Send each frequency 3 times to ensure SPI works
     for (int i = 0; i < NUMCOILS; i++)
     {
     	for (int j = 0; j < 3; j++){
@@ -183,9 +208,10 @@ int processSerial(char *inputbuf)
 		cmd = strtok(NULL, " :");
 		return processFreqs(cmd);
 	}
-	else{
-		return NACK;
+	else if(!strcmp(cmd, cmdRst)){
+		resetAll();
 	}
+ else{return NACK;}
 }
 
 
@@ -216,9 +242,9 @@ int processFreqs(char *cmd)
 
 int isCoilValid(int coilNo)
 {
-	for(int i = 0; i < NUMCOILS; i++){
+	for(int i = 1; i <= NUMCOILS; i++){
 		if(i == coilNo){
-			return i + 1; // Add +1 to prevent false return
+			return i ; // Add +1 to prevent false return
 		}
 	}
 	return false;
