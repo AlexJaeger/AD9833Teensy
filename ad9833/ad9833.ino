@@ -26,14 +26,14 @@ float f_MCK = 6000000.0;
 // The number of frequencies should match the number of coils
 // FREQ:1@20300:2@21700:3@22400:4@23600:5@24500:6@25100:7@26800:8@27500
 int coilFreqs[NUMCOILS] ={
-	20300, // Coil 1
-	21700, // Coil 2
-	22400, // Coil 3
-	23600, // Coil 4
-	24500, // Coil 5
-	25100, // Coil 6
-	26800, // Coil 7
-	27500  // Coil 8
+	20000, // Coil 1
+	22000, // Coil 2
+	24000, // Coil 3
+	26000, // Coil 4
+	28000, // Coil 5
+	30000, // Coil 6
+	32000, // Coil 7
+	34000  // Coil 8
 };
 
 // Pin numbers for each coil on Teensy 3.2 
