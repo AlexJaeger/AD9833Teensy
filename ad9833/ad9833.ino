@@ -16,6 +16,7 @@ works
 
 // List of commands goes here.
 const char cmdFreq[] = "FREQ";
+const char cmdFreqReset[] = "FREQR";
 const char cmdRead[] = "READ";
 const char cmdRst[]  = "RESET";
 
@@ -48,6 +49,17 @@ int coilEnable[NUMCOILS] ={
   7  // Coil 8 
 };
 
+int coilSelect[NUMCOILS] = {
+  15, // Coil 1
+  16, // Coil 2
+  17, // Coil 3
+  19, // Coil 4
+  20, // Coil 5
+  21, // Coil 6
+  22, // Coil 7
+  23  // Coil 8
+};
+
 // Input serial buffer and size holder
 char input[INPUT_SIZE + 1];
 byte cmdsize = 0;
@@ -64,6 +76,8 @@ void setup()
 	  // Set states for the SPI enable pins
     for (int i = 0; i < NUMCOILS; i++){
     	pinMode(coilEnable[i], INPUT);
+      pinMode(coilSelect[i], OUTPUT);
+      digitalWrite(coilSelect[i], LOW);
     }
 
     // Start Serial and reduce timeout to 100ms
@@ -211,6 +225,9 @@ int processSerial(char *inputbuf)
 	else if(!strcmp(cmd, cmdRst)){
 		resetAll();
 	}
+  else if(!strcmp(cmd, cmdFreqReset)){
+    processFreqsReset(cmd);
+  }
  else{return NACK;}
 }
 
@@ -238,6 +255,26 @@ int processFreqs(char *cmd)
 		cmd = strtok(NULL, " :");
 	}
 }
+
+int processFreqsReset(char *cmd)
+{
+ resetAll();
+ processFreqs(cmd);
+}
+
+
+void selectCoil(int coilNo)
+{
+  for (int i=0; i<NUMCOILS; i++){
+      if (i == coilNo){
+        digitalWrite(coilSelect[i], LOW); // Set to transmit
+      }
+      else{
+        digitalWrite(coilSelect[i], HIGH); // Set to receive
+      }
+  }
+}
+
 
 
 int isCoilValid(int coilNo)
